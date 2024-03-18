@@ -1,0 +1,58 @@
+### Prinicpal Component Analysis ###
+
+rm(list = ls())
+uscrime <- read.table('uscrime.txt', stringsAsFactors = FALSE, header = TRUE)
+library(GGally)
+library(ggplot2)
+
+#pairing each factor together to show correlations between factors
+#ggpairs(uscrime, columns = )
+#running PCA on all factors and finding sdev/rotation/center
+PCA <- prcomp(uscrime[,1:15],scale = TRUE)
+summary(PCA)
+
+#identify rotational values showing the importance of each factor -
+#after removing correlation between values and making plot orthogonal
+PCA$rotation
+
+#x containing a sdev used to determine variance elbow plot
+screeplot(PCA,type="lines")
+
+#after examining screeplot, PCA demonstrates where to cut off importance in factors
+#calling new variable for first 4 factors and its rotational value
+PCA4 <- PCA$x[,1:4]
+
+#now that we first principal components, we can run linear regression
+#adding back the predictor (crime column)
+uscrimePCA4 <- cbind(PCA4, uscrime[,16])
+
+#lm(model to be fitted, dataframe/list containing variables)
+modelPCA <- lm(V5~., data = as.data.frame(uscrimePCA4))
+summary(modelPCA)
+
+#creating vectors to rotate still using 4 factors
+intercept <- modelPCA$coefficents[1]
+beta <- modelPCA$coefficients[2:5]
+
+#multiply by rotation matrix to descale
+alpha <- PCA$rotation[,1:4] %*% beta
+mu <- sapply(uscrime[,1:15], mean)
+sig <- sapply(uscrime[,1:15], sd)
+originalA <- alpha / sig
+originalB <- intercept - sum(alpha*mu / sig)
+
+#now that we have the linear regression equation, we can find accuracy
+model <- as.matrix(uscrime[,1:15]) %*% originalA + originalB
+SSE = sum((model-uscrime[,16])^2)
+SStotal = sum((uscrime[,16] - mean(uscrime[,16]))^2)
+accuracy <- 1 - SSE/SStotal
+
+#lets see how our new Principal Components model will do
+new_city <- data.frame(M= 14.0, So = 0, Ed = 10.0, Po1 = 12.0, Po2 = 15.5,
+ LF = 0.640, M.F = 94.0, Pop = 150, NW = 1.1, U1 = 0.120, U2 = 3.6, Wealth = 3200,
+Ineq = 20.1, Prob = 0.040,Time = 39.0)
+crime_predict <- data.frame(predict(PCA, new_city))
+predicted <- predict(modelPCA, crime_predict)
+predicted
+
+### narrowing down 15 predictors down to 4 using PCA and factor correlation visualizations ###
